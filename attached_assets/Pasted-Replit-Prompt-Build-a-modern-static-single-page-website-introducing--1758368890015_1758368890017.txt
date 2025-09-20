@@ -1,0 +1,289 @@
+Replit Prompt (Монгол)
+
+Build a modern, static, single-page website introducing “Мандах Их Сургууль”.
+Tech: HTML5 + CSS (Tailwind эсвэл цэвэр CSS), vanilla JS only. No frameworks, no build step.
+Files: index.html, styles.css, script.js, assets/ (dummy images).
+Goal: Хурдан ачаалалтай, академик өнгө төрхтэй, гар утаснаас desktop хүртэл төгс таарна.
+
+Design & Brand
+
+Color palette: академик цэнхэр/цагаан/алтлаг шар (primary: #1F4AB8; secondary: #F5F7FF; accent: #F0B429).
+
+Typography: систем фонтууд (Inter/Segoe UI/Helvetica fallback). Монгол кирилл сайн харагдахуйц.
+
+Layout: 1200px container max, ample whitespace, rounded-xl cards, зөөлөн сүүдэр.
+
+Accessibility: контраст ≥ 4.5:1, keyboard focus, alt текстүүд.
+
+Structure (one page, smooth-scroll)
+
+Sticky Navbar – Logo (текст хэлбэрээр), Меню: Нүүр, Бидний тухай, Хөтөлбөрүүд, Элсэлт, Оюутны амьдрал, Мэдээ/Үйл явдал, Түншлэл, Түгээмэл асуулт, Холбоо барих.
+
+Hero (дээд хэсэг) – Том гарчиг, дэд тайлбар, 2 CTA:
+
+“Элсэлтийн мэдээлэл” (скролл → Элсэлт)
+
+“Хөтөлбөрүүдийг үзэх” (скролл → Хөтөлбөрүүд)
+
+Background: campus-ын зөөлөн градиент/зураг placeholder.
+
+Бидний тухай – 2 багана: текст + фото. “Эрхэм зорилго”, “Алсын хараа”, “Үнэт зүйлс” жижиг картуудаар.
+
+Хөтөлбөрүүд – Cards grid (Бакалавр, Магистр, Мэргэжлийн сургалт). Card бүрт:
+
+Нэр, 2–3 bullet, хугацаа, хэлбэр (өдрийн/оройн), “Дэлгэрэнгүй” товч (modal эсвэл placeholder линк).
+
+Элсэлт – Алхамчилсан тайлбар (1. Бүртгүүлэх 2. Бичиг баримт 3. Шалгалт/ярилцлага 4. Элсэлт баталгаажуулах). Download/линк placeholder: “Элсэлтийн журам (PDF)”.
+
+Оюутны амьдрал – Клуб, тэтгэлэг, дотуур байр, номын сан, лаборатори—icons + short copy.
+
+Мэдээ ба Үйл явдал – 3–6 статик карт (огноо, гарчиг, 120–160 тэмдэгтийн тайлбар), “Бүгдийг харах” dummy линк.
+
+Төгсөгчдийн сэтгэгдэл – Carousel эсвэл 3 testimonial cards (quip).
+
+Түншлэл – Лого placeholder-ууд grid (монохром стилиэр).
+
+Түгээмэл асуулт (FAQ) – Accordion (6–8 асуулт).
+
+Холбоо барих – Form (нэр, утас, имэйл, зурвас) → Formspree placeholder action; хажууд нь Google Maps iframe placeholder (УБ хотын төв координат).
+
+Footer – Богино танилцуулга, хурдан линкүүд, сошиал икон (aria-label), copyright.
+
+Content (Монгол хэл дээр тавь)
+
+Доорх copy-г сайтад оруул:
+
+Hero гарчиг:
+“Ирээдүйгээ Мандах-аас эхлүүлье.”
+
+Hero дэд тайлбар:
+“Мандах Их Сургууль — санхүү, мэдээллийн технологи, бизнесийн чиглэлийн чанартай боловсролыг олон улсын стандарттай уялдуулан олгоно.”
+
+Бидний тухай — текст:
+“1992 оноос эхтэй уламжлалт сургалтын арга зүйг дижитал шилжилттэй хослуулж, хөдөлмөрийн зах зээлд бэлэн, ёс зүйтэй, бүтээлч мэргэжилтэн бэлтгэнэ.”
+
+Эрхэм зорилго/Алсын хараа/Үнэт зүйлс:
+
+Эрхэм зорилго: “Чанартай боловсролоор нийгмийн хөгжилд хувь нэмэр оруулах.”
+
+Алсын хараа: “Судалгаа, инновацаар тэргүүлсэн их сургууль.”
+
+Үнэт зүйлс: “Оюунлаг байдал • Шударга ёс • Хамтын хөгжил.”
+
+Хөтөлбөрүүд — жишээ картууд:
+
+“Санхүүгийн менежмент (Бакалавр)” – 4 жил, өдрийн сургалт. Гол ур чадвар: санхүүгийн шинжилгээ, тайлагнал, өгөгдөлд суурилсан шийдвэр.
+
+“Мэдээллийн систем (Бакалавр)” – 4 жил, өдрийн/оройн. Гол ур чадвар: веб хөгжүүлэлт, өгөгдлийн сан, автомажуулалт.
+
+“Бизнесийн удирдлага (Магистр)” – 1.5 жил. Гол ур чадвар: стратеги, манлайлал, аналитик.
+
+Элсэлт — тайлбар:
+“Онлайн бүртгэл нээлттэй. Бүрдүүлэх материал: иргэний үнэмлэх, цээж зураг, ЭЕШ оноо/дунд сургуулийн голч дүн, цахим төлбөрийн баримт.”
+
+Оюутны амьдрал — богино copy:
+“Клуб, клубууд; тэтгэлэг; дотуур байр; номын сан; спортын заал; инновацын лаборатори—оюутны хөгжлийг бүх талаар дэмжинэ.”
+
+Мэдээ/Үйл явдал — кард текст (жишээ):
+
+“Эрдэм шинжилгээний хурал 2025” – “Санхүү ба AI чиглэлийн илтгэлүүд…”
+
+“Нээлттэй хаалганы өдөр” – “Кампус танилцуулга, демо хичээл, зөвлөгөө…”
+
+Төгсөгчдийн сэтгэгдэл:
+“Ажилд гарах бэлтгэлтэй болгосон практик курсууд надад их тус болсон.” — Б.Анударь, Санхүү 2023
+
+FAQ — жишээ:
+
+Асуулт: “Сургалтын төлбөрийг хэрхэн төлөх вэ?” Хариулт: “Капитал банкны гүйлгээ, картаар болон цахимаар хуваан төлөх боломжтой.”
+
+Асуулт: “Тэтгэлэгт хөтөлбөр байдаг уу?” Хариулт: “Гүйцэтгэл, нийгмийн идэвх, тусгай шаардлагаар зарлагддаг.”
+
+Холбоо барих — placeholder:
+
+Хаяг: “Улаанбаатар, …”
+
+Утас: “+976 …” • Имэйл: “info@… .edu.mn”
+
+Ажлын цаг: “Даваа–Баасан 09:00–18:00”
+
+Interactions & UX
+
+Smooth scroll, active menu highlight, back-to-top товч.
+
+FAQ accordion (pure JS).
+
+Form validation (HTML5 + JS), Formspree action placeholder.
+
+Cards hover微-анимаци (transform/transition).
+
+Lazy-load images.
+
+SEO
+
+<title>Мандах Их Сургууль — Танилцуулга</title>
+
+Meta description (100–150 тэмдэгт, Монгол).
+
+Open Graph/Twitter tags, favicon placeholder.
+
+Semantic tags: <header> <nav> <main> <section> <article> <footer>.
+
+Performance
+
+1 CSS, 1 JS; minimize DOM; responsive images; preload main font (optional).
+
+Lighthouse ≥ 90 for Performance/Accessibility/Best Practices/SEO.
+
+Deliverables
+
+Бүрэн ажиллах index.html, styles.css, script.js.
+
+assets/ дотор 6–8 placeholder image (campus-like).
+
+Code-д Монгол комментууд, TODO тэмдэглэгээ.
+
+хэрвээ Tailwind-гүйгээр хүсвэл “Tailwind биш, цэвэр CSS-ээр бич” гэж дээрх PROMPT доторх Tech мөрийг өөрчилөөд явуулж болно. Хүсвэл одооныхыг 2 хуудастай (Нүүр, Мэдээ) болгох variation ч гаргаж өгч чадна—хэлээд л өг.
+
+You said:
+angli hel deer awy
+ChatGPT said:
+
+Perfect 👍 Here’s the Replit prompt in English for generating a static introduction website for Mandakh University. Just paste this into Replit’s AI prompt box, and it will scaffold the project.
+
+Replit Prompt (English)
+
+Build a modern, static, single-page website introducing “Mandakh University”.
+Tech stack: HTML5 + CSS (Tailwind or plain CSS), vanilla JavaScript only. No frameworks or build tools.
+Files required: index.html, styles.css, script.js, assets/ (for placeholder images).
+Goal: Academic, professional design. Fast-loading, mobile-to-desktop responsive.
+
+Design Guidelines
+
+Colors: Academic blue/white/golden (primary: #1F4AB8; secondary: #F5F7FF; accent: #F0B429).
+
+Typography: System fonts (Inter/Segoe UI/Helvetica fallback). Must render Mongolian Cyrillic and English well.
+
+Layout: Max width 1200px, generous whitespace, rounded-xl cards, subtle shadows.
+
+Accessibility: WCAG AA contrast, keyboard navigation, alt text for images.
+
+Structure (Single-page, smooth scroll)
+
+Sticky Navbar – Logo (text-based), Menu items: Home, About, Programs, Admissions, Student Life, News & Events, Partnerships, FAQ, Contact.
+
+Hero Section – Large heading, subheading, 2 CTAs:
+
+“Admissions Info” → scroll to Admissions
+
+“Explore Programs” → scroll to Programs
+
+Background: gradient + campus placeholder image.
+
+About Us – Two columns (text + photo). Includes Mission, Vision, Core Values (as cards).
+
+Programs – Grid of cards (Bachelor, Master, Professional training). Each card: title, 2–3 bullet points, duration, study type, “Learn more” button.
+
+Admissions – Step-by-step process (1. Register 2. Submit documents 3. Exam/interview 4. Confirmation). Include placeholder link: “Download Admissions Guide (PDF)”.
+
+Student Life – Clubs, scholarships, dorms, library, labs. Icon + short copy format.
+
+News & Events – 3–6 static cards with date, title, short description. “View All” placeholder link.
+
+Alumni Testimonials – 3 testimonial cards or a simple carousel.
+
+Partnerships – Grid of partner logos (placeholder).
+
+FAQ – Accordion style, 6–8 common questions.
+
+Contact – Contact form (name, phone, email, message) with Formspree placeholder; Google Maps iframe for campus location.
+
+Footer – Short description, quick links, social icons, copyright.
+
+Sample Content
+
+Hero Heading:
+“Shape Your Future with Mandakh University.”
+
+Hero Subheading:
+“Mandakh University provides internationally aligned education in finance, IT, and business management.”
+
+About Us Text:
+“Founded in 1992, Mandakh University blends tradition with digital innovation to prepare ethical and skilled professionals ready for the modern workforce.”
+
+Mission / Vision / Values:
+
+Mission: “Deliver quality education that contributes to social development.”
+
+Vision: “A research and innovation-driven university.”
+
+Values: “Intellectual growth • Integrity • Collaboration.”
+
+Programs Example:
+
+Bachelor of Finance Management – 4 years, daytime. Skills: financial analysis, reporting, data-driven decision making.
+
+Bachelor of Information Systems – 4 years, day/evening. Skills: web development, databases, automation.
+
+Master of Business Administration – 1.5 years. Skills: strategy, leadership, analytics.
+
+Admissions Sample Text:
+“Online registration is open. Required documents: ID card, photo, entrance exam scores or GPA, payment receipt.”
+
+News Example:
+
+“Research Conference 2025” – “Papers on Finance and AI presented…”
+
+“Open House Day” – “Campus tour, demo classes, admissions counseling…”
+
+Testimonial:
+“The practical courses gave me confidence to enter the job market.” — Anudar B., Finance 2023
+
+FAQ Sample:
+
+Q: “How can I pay tuition fees?” A: “Via bank transfer, card, or installment plans.”
+
+Q: “Are scholarships available?” A: “Yes, based on performance and social criteria.”
+
+Contact Info (Placeholder):
+
+Address: “Ulaanbaatar, Mongolia”
+
+Phone: “+976 …”
+
+Email: “info@mandakh.edu.mn
+”
+
+Hours: “Mon–Fri, 9 AM – 6 PM”
+
+Features & UX
+
+Smooth scroll with active menu highlighting.
+
+Back-to-top button.
+
+FAQ accordion with pure JS.
+
+Cards with hover transitions.
+
+Lazy-loaded images.
+
+Form validation (HTML5 + JS).
+
+SEO
+
+<title>Mandakh University — Official Introduction</title>
+
+Meta description: “Mandakh University offers high-quality programs in finance, IT, and business in Mongolia.”
+
+Open Graph/Twitter meta tags.
+
+Semantic HTML5 structure.
+
+Deliverables
+
+Working index.html, styles.css, script.js.
+
+6–8 placeholder images in /assets.
+
+Clear comments and TODO notes in English.
