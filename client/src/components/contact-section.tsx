@@ -6,6 +6,8 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
+import { useMutation } from "@tanstack/react-query";
+import { apiRequest } from "@/lib/queryClient";
 
 export default function ContactSection() {
   const [formData, setFormData] = useState({
@@ -15,6 +17,35 @@ export default function ContactSection() {
     message: ""
   });
   const { toast } = useToast();
+
+  const contactMutation = useMutation({
+    mutationFn: async (data: typeof formData) => {
+      return apiRequest("/api/contact", {
+        method: "POST",
+        body: data,
+      });
+    },
+    onSuccess: (data) => {
+      toast({
+        title: "Амжилттай",
+        description: data.message || "Таны мессеж амжилттай илгээгдлээ!",
+      });
+      // Reset form
+      setFormData({
+        name: "",
+        phone: "",
+        email: "", 
+        message: ""
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Алдаа",
+        description: error.message || "Мессеж илгээхэд алдаа гарлаа",
+        variant: "destructive",
+      });
+    },
+  });
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     setFormData(prev => ({
@@ -45,19 +76,7 @@ export default function ContactSection() {
       return;
     }
 
-    // Show success message
-    toast({
-      title: "Амжилттай",
-      description: "Таны мессеж амжилттай илгээгдлээ!",
-    });
-
-    // Reset form
-    setFormData({
-      name: "",
-      phone: "",
-      email: "", 
-      message: ""
-    });
+    contactMutation.mutate(formData);
   };
 
   const contactInfo = [
@@ -161,9 +180,10 @@ export default function ContactSection() {
                 <Button 
                   type="submit" 
                   className="w-full"
+                  disabled={contactMutation.isPending}
                   data-testid="button-submit-contact"
                 >
-                  Илгээх
+                  {contactMutation.isPending ? "Илгээж байна..." : "Илгээх"}
                 </Button>
               </form>
             </CardContent>
