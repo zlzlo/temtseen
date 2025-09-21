@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { Menu, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import mandakhLogo from "@/assets/mandakh-logo.svg";
 
 const navItems = [
   { href: "#home", label: "Нүүр" },
@@ -50,8 +51,13 @@ export default function Navigation() {
     <nav className="navbar-blur fixed top-0 left-0 right-0 z-40 border-b border-border">
       <div className="container mx-auto px-6 py-4">
         <div className="flex items-center justify-between">
-          <div className="text-2xl font-bold text-primary" data-testid="logo">
-            Мандах Их Сургууль
+          <div className="flex items-center" data-testid="logo">
+            <img
+              src={mandakhLogo}
+              alt="Мандах Их Сургууль эмблем"
+              className="h-12 w-auto"
+            />
+            <span className="sr-only">Мандах Их Сургууль</span>
           </div>
 
           {/* Desktop Menu */}
