@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" role="img" aria-labelledby="title desc">
+  <title id="title">Mandakh University emblem</title>
+  <desc id="desc">Circular crest with laurel branches, an open book, sunrise and flame above the letter M.</desc>
+  <circle cx="128" cy="128" r="120" fill="#ffffff" stroke="#0E5CD8" stroke-width="10" />
+  <circle cx="128" cy="128" r="102" fill="none" stroke="#86B7F2" stroke-width="6" />
+  <g fill="#F4B63F">
+    <ellipse cx="70" cy="66" rx="10" ry="24" transform="rotate(-30 70 66)" />
+    <ellipse cx="54" cy="92" rx="10" ry="24" transform="rotate(-20 54 92)" />
+    <ellipse cx="46" cy="120" rx="10" ry="24" transform="rotate(-8 46 120)" />
+    <ellipse cx="44" cy="150" rx="10" ry="24" transform="rotate(6 44 150)" />
+    <ellipse cx="50" cy="180" rx="10" ry="24" transform="rotate(20 50 180)" />
+    <ellipse cx="66" cy="206" rx="10" ry="24" transform="rotate(32 66 206)" />
+  </g>
+  <g fill="#F4B63F" transform="scale(-1,1) translate(-256,0)">
+    <ellipse cx="70" cy="66" rx="10" ry="24" transform="rotate(-30 70 66)" />
+    <ellipse cx="54" cy="92" rx="10" ry="24" transform="rotate(-20 54 92)" />
+    <ellipse cx="46" cy="120" rx="10" ry="24" transform="rotate(-8 46 120)" />
+    <ellipse cx="44" cy="150" rx="10" ry="24" transform="rotate(6 44 150)" />
+    <ellipse cx="50" cy="180" rx="10" ry="24" transform="rotate(20 50 180)" />
+    <ellipse cx="66" cy="206" rx="10" ry="24" transform="rotate(32 66 206)" />
+  </g>
+  <path d="M76 170V124c22-12 36-18 52-18s30 6 52 18v46c-22-14-38-20-52-20s-30 6-52 20z" fill="#ffffff" stroke="#0E5CD8" stroke-width="6" stroke-linejoin="round" />
+  <path d="M92 180h72l-24-48h-24z" fill="#0E5CD8" />
+  <path d="M92 180h72l-12-24H104z" fill="#1449A3" />
+  <path d="M80 174c22-14 34-18 48-18s26 4 48 18v12H80z" fill="#0E5CD8" />
+  <path d="M128 92c-10 10-16 20-16 32 0 12 8 20 16 20s16-8 16-20c0-12-6-22-16-32z" fill="#E63946" />
+  <path d="M128 110c-6 6-8 12-8 18s4 10 8 10 8-4 8-10-2-12-8-18z" fill="#FAD765" />
+  <path d="M128 108c-16 0-30 8-38 22l10 6c6-10 16-16 28-16s22 6 28 16l10-6c-8-14-22-22-38-22z" fill="#FAD765" />
+  <path d="M128 132c-14 0-26 6-34 18l8 4c6-8 14-12 26-12s20 4 26 12l8-4c-8-12-20-18-34-18z" fill="#F4B63F" />
+  <circle cx="128" cy="168" r="8" fill="#E63946" stroke="#ffffff" stroke-width="4" />
+  <path d="M112 188h32l-16 10z" fill="#0E5CD8" />
+</svg>
