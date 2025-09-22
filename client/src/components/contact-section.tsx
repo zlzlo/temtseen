@@ -8,40 +8,42 @@ import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { useMutation } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
+import { useLanguage } from "@/lib/language-context";
+import { translations } from "@/lib/translations";
+
+const infoIcons = [MapPin, Phone, Mail, Clock];
 
 export default function ContactSection() {
   const [formData, setFormData] = useState({
     name: "",
-    phone: "", 
+    phone: "",
     email: "",
     message: ""
   });
   const { toast } = useToast();
+  const { language } = useLanguage();
+  const content = translations.contact[language];
 
   const contactMutation = useMutation({
     mutationFn: async (data: typeof formData) => {
-      return apiRequest("/api/contact", {
-        method: "POST",
-        body: data,
-      });
+      return apiRequest("POST", "/api/contact", data);
     },
-    onSuccess: (data) => {
+    onSuccess: () => {
       toast({
-        title: "Амжилттай",
-        description: data.message || "Таны мессеж амжилттай илгээгдлээ!",
+        title: content.toast.successTitle,
+        description: content.toast.successDescription,
       });
-      // Reset form
       setFormData({
         name: "",
         phone: "",
-        email: "", 
+        email: "",
         message: ""
       });
     },
     onError: (error: any) => {
       toast({
-        title: "Алдаа",
-        description: error.message || "Мессеж илгээхэд алдаа гарлаа",
+        title: content.toast.errorTitle,
+        description: error?.message || content.toast.submitError,
         variant: "destructive",
       });
     },
@@ -56,12 +58,11 @@ export default function ContactSection() {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    
-    // Basic validation
+
     if (!formData.name || !formData.email || !formData.message) {
       toast({
-        title: "Алдаа",
-        description: "Бүх шаардлагатай талбарыг бөглөнө үү",
+        title: content.toast.errorTitle,
+        description: content.toast.requiredFields,
         variant: "destructive",
       });
       return;
@@ -69,8 +70,8 @@ export default function ContactSection() {
 
     if (!formData.email.includes('@')) {
       toast({
-        title: "Алдаа", 
-        description: "Зөв имэйл хаяг оруулна уу",
+        title: content.toast.errorTitle,
+        description: content.toast.invalidEmail,
         variant: "destructive",
       });
       return;
@@ -79,55 +80,27 @@ export default function ContactSection() {
     contactMutation.mutate(formData);
   };
 
-  const contactInfo = [
-    {
-      icon: MapPin,
-      title: "Хаяг",
-      value: "Улаанбаатар, Монгол Улс",
-      color: "primary"
-    },
-    {
-      icon: Phone,
-      title: "Утас", 
-      value: "+976 ...",
-      color: "accent"
-    },
-    {
-      icon: Mail,
-      title: "Имэйл",
-      value: "info@mandakh.edu.mn",
-      color: "primary"
-    },
-    {
-      icon: Clock,
-      title: "Ажлын цаг",
-      value: "Даваа–Баасан 09:00–18:00", 
-      color: "accent"
-    }
-  ];
-
   return (
     <section id="contact" className="section-padding bg-background">
       <div className="container mx-auto px-6">
         <div className="text-center mb-16">
           <h2 className="text-3xl md:text-4xl font-bold text-foreground mb-4">
-            Холбоо барих
+            {content.title}
           </h2>
           <p className="text-lg text-muted-foreground">
-            Асуулт байвал бидэнтэй холбогдоорой
+            {content.description}
           </p>
         </div>
 
         <div className="grid lg:grid-cols-2 gap-12">
-          {/* Contact Form */}
           <Card className="shadow-lg">
             <CardContent className="p-8">
               <h3 className="text-xl font-bold mb-6 text-card-foreground">
-                Мессеж илгээх
+                {content.formTitle}
               </h3>
               <form onSubmit={handleSubmit} className="space-y-6">
                 <div>
-                  <Label htmlFor="name">Нэр</Label>
+                  <Label htmlFor="name">{content.fields.name}</Label>
                   <Input
                     id="name"
                     name="name"
@@ -140,7 +113,7 @@ export default function ContactSection() {
                   />
                 </div>
                 <div>
-                  <Label htmlFor="phone">Утас</Label>
+                  <Label htmlFor="phone">{content.fields.phone}</Label>
                   <Input
                     id="phone"
                     name="phone"
@@ -152,7 +125,7 @@ export default function ContactSection() {
                   />
                 </div>
                 <div>
-                  <Label htmlFor="email">Имэйл</Label>
+                  <Label htmlFor="email">{content.fields.email}</Label>
                   <Input
                     id="email"
                     name="email"
@@ -165,7 +138,7 @@ export default function ContactSection() {
                   />
                 </div>
                 <div>
-                  <Label htmlFor="message">Зурвас</Label>
+                  <Label htmlFor="message">{content.fields.message}</Label>
                   <Textarea
                     id="message"
                     name="message"
@@ -177,57 +150,66 @@ export default function ContactSection() {
                     data-testid="textarea-message"
                   />
                 </div>
-                <Button 
-                  type="submit" 
+                <Button
+                  type="submit"
                   className="w-full"
                   disabled={contactMutation.isPending}
                   data-testid="button-submit-contact"
                 >
-                  {contactMutation.isPending ? "Илгээж байна..." : "Илгээх"}
+                  {contactMutation.isPending ? content.submit.loading : content.submit.idle}
                 </Button>
               </form>
             </CardContent>
           </Card>
 
-          {/* Contact Info & Map */}
           <div className="space-y-8">
             <Card className="shadow-lg">
               <CardContent className="p-8">
                 <h3 className="text-xl font-bold mb-6 text-card-foreground">
-                  Холбоо барих мэдээлэл
+                  {content.infoTitle}
                 </h3>
                 <div className="space-y-4">
-                  {contactInfo.map((info, index) => (
-                    <div key={index} className="flex items-center">
-                      <div className={`w-10 h-10 ${
-                        info.color === "primary" ? "bg-primary" : "bg-accent"
-                      } rounded-lg flex items-center justify-center mr-4`}>
-                        <info.icon className={`w-5 h-5 ${
-                          info.color === "primary" ? "text-primary-foreground" : "text-accent-foreground"
-                        }`} />
+                  {content.infoItems.map((info, index) => {
+                    const Icon = infoIcons[index];
+                    const color = index % 2 === 0 ? "primary" : "accent";
+
+                    return (
+                      <div key={`${info.title}-${index}`} className="flex items-center">
+                        <div
+                          className={`w-10 h-10 ${
+                            color === "primary" ? "bg-primary" : "bg-accent"
+                          } rounded-lg flex items-center justify-center mr-4`}
+                        >
+                          {Icon && (
+                            <Icon
+                              className={`w-5 h-5 ${
+                                color === "primary" ? "text-primary-foreground" : "text-accent-foreground"
+                              }`}
+                            />
+                          )}
+                        </div>
+                        <div>
+                          <p className="font-medium text-card-foreground">
+                            {info.title}
+                          </p>
+                          <p className="text-muted-foreground">
+                            {info.value}
+                          </p>
+                        </div>
                       </div>
-                      <div>
-                        <p className="font-medium text-card-foreground">
-                          {info.title}
-                        </p>
-                        <p className="text-muted-foreground">
-                          {info.value}
-                        </p>
-                      </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </CardContent>
             </Card>
 
-            {/* Google Maps Placeholder */}
             <Card className="shadow-lg">
               <CardContent className="p-4">
                 <div className="w-full h-64 bg-muted rounded-lg flex items-center justify-center">
                   <div className="text-center text-muted-foreground">
                     <MapPin className="w-12 h-12 mx-auto mb-2" />
-                    <p>Google Maps Placeholder</p>
-                    <p className="text-xs">Координат: Улаанбаатар хот</p>
+                    <p>{content.map.placeholder}</p>
+                    <p className="text-xs">{content.map.coordinates}</p>
                   </div>
                 </div>
               </CardContent>

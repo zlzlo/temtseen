@@ -1,19 +1,6 @@
 import { Facebook, Twitter, Instagram } from "lucide-react";
-
-const quickLinks = [
-  { href: "#about", label: "Бидний тухай" },
-  { href: "#programs", label: "Хөтөлбөрүүд" },
-  { href: "#admissions", label: "Элсэлт" },
-  { href: "#student-life", label: "Оюутны амьдрал" },
-  { href: "#contact", label: "Холбоо барих" }
-];
-
-const contactInfo = [
-  "+976 ...",
-  "info@mandakh.edu.mn", 
-  "Улаанбаатар, Монгол Улс",
-  "Даваа–Баасан 09:00–18:00"
-];
+import { useLanguage } from "@/lib/language-context";
+import { translations } from "@/lib/translations";
 
 const socialLinks = [
   { icon: Facebook, href: "#", label: "Facebook" },
@@ -22,6 +9,9 @@ const socialLinks = [
 ];
 
 export default function Footer() {
+  const { language } = useLanguage();
+  const content = translations.footer[language];
+
   const scrollToSection = (href: string) => {
     const element = document.querySelector(href);
     if (element) {
@@ -34,9 +24,9 @@ export default function Footer() {
       <div className="container mx-auto px-6 py-12">
         <div className="grid md:grid-cols-4 gap-8">
           <div className="md:col-span-2">
-            <h3 className="text-2xl font-bold mb-4">Мандах Их Сургууль</h3>
+            <h3 className="text-2xl font-bold mb-4">{content.title}</h3>
             <p className="text-primary-foreground/80 mb-6">
-              1992 оноос эхтэй уламжлалт сургалтын арга зүйг дижитал шилжилттэй хослуулж, хөдөлмөрийн зах зээлд бэлэн, ёс зүйтэй, бүтээлч мэргэжилтэн бэлтгэнэ.
+              {content.description}
             </p>
             <div className="flex space-x-4">
               {socialLinks.map((social) => (
@@ -54,9 +44,9 @@ export default function Footer() {
           </div>
 
           <div>
-            <h4 className="text-lg font-semibold mb-4">Хурдан линкүүд</h4>
+            <h4 className="text-lg font-semibold mb-4">{content.quickLinksTitle}</h4>
             <ul className="space-y-2 text-primary-foreground/80">
-              {quickLinks.map((link) => (
+              {content.quickLinks.map((link) => (
                 <li key={link.href}>
                   <button
                     onClick={() => scrollToSection(link.href)}
@@ -71,10 +61,10 @@ export default function Footer() {
           </div>
 
           <div>
-            <h4 className="text-lg font-semibold mb-4">Холбогдох</h4>
+            <h4 className="text-lg font-semibold mb-4">{content.contactTitle}</h4>
             <ul className="space-y-2 text-primary-foreground/80 text-sm">
-              {contactInfo.map((info, index) => (
-                <li key={index}>{info}</li>
+              {content.contactInfo.map((info, index) => (
+                <li key={`${info}-${index}`}>{info}</li>
               ))}
             </ul>
           </div>
@@ -82,7 +72,7 @@ export default function Footer() {
 
         <div className="border-t border-primary-foreground/20 mt-8 pt-8 text-center">
           <p className="text-primary-foreground/60 text-sm">
-            © 2025 Мандах Их Сургууль. Бүх эрх хуулиар хамгаалагдсан.
+            {content.copyright}
           </p>
         </div>
       </div>
