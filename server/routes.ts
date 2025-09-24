@@ -11,7 +11,6 @@ import {
   insertContactMessageSchema
 } from "@shared/schema";
 import { z } from "zod";
-import { knowledgeBase, type KnowledgeEntry } from "./knowledge";
 
 /** ----- Chat schemas ----- */
 const chatMessageSchema = z.object({
@@ -23,148 +22,18 @@ const chatRequestSchema = z.object({
 });
 
 /** ----- OpenAI Prompt ID (Published Prompt) ----- */
-const MANDAX_PROMPT_ID = "pmpt_68d3f38ef4048196adfa404d6e7eb56d0602415a6bfbe225";
+const MANDAX_PROMPT_ID =
+  process.env.MANDAX_PROMPT_ID || "pmpt_68d3f38ef4048196adfa404d6e7eb56d0602415a6bfbe225";
 
 /** ----- Helper: safe output_text fallback ----- */
 function extractOutputText(resp: any): string {
   const direct = resp?.output_text?.trim?.();
   if (direct) return direct;
-  // defensive fallbacks for older SDK payload shapes
-  const fromArray =
+  return (
     resp?.output?.[0]?.content?.[0]?.text?.trim?.() ||
     resp?.data?.[0]?.content?.[0]?.text?.trim?.() ||
-    "";
-  return fromArray;
-}
-
-type ChatMessage = z.infer<typeof chatMessageSchema>;
-
-const STOP_WORDS = new Set([
-  "би",
-  "чи",
-  "та",
-  "энэ",
-  "тэр",
-  "асуулт",
-  "тухай",
-  "талаар",
-  "байна",
-  "байдаг",
-  "байх",
-  "бол",
-  "болох",
-  "хэрхэн",
-  "яаж",
-  "ямар",
-  "хэн",
-  "хэд",
-  "өгөөч",
-  "хүсэж",
-  "мэдээлэл"
-]);
-
-function tokenizeText(text: string): string[] {
-  return text
-    .toLowerCase()
-    .normalize("NFC")
-    .replace(/[^\w\s\u0400-\u04FF]+/g, " ")
-    .split(/\s+/)
-    .map((token) => token.trim())
-    .filter(Boolean);
-}
-
-interface KnowledgeIndexEntry {
-  entry: KnowledgeEntry;
-  fullText: string;
-  tokens: Set<string>;
-  keywordSet: Set<string>;
-}
-
-const knowledgeIndex: KnowledgeIndexEntry[] = knowledgeBase.map((entry) => {
-  const fullText = `${entry.title} ${entry.content} ${(entry.keywords ?? []).join(" ")}`.toLowerCase();
-  return {
-    entry,
-    fullText,
-    tokens: new Set(tokenizeText(fullText)),
-    keywordSet: new Set(entry.keywords.map((keyword) => keyword.toLowerCase()))
-  };
-});
-
-function buildKnowledgeContext(
-  query: string,
-  limit = 3
-): { context: string; matches: KnowledgeEntry[] } {
-  const normalizedQuery = query.toLowerCase();
-  const queryTokens = tokenizeText(normalizedQuery).filter(
-    (token) => token && !STOP_WORDS.has(token)
+    ""
   );
-
-  if (queryTokens.length === 0) {
-    return { context: "", matches: [] };
-  }
-
-  const matches = knowledgeIndex
-    .map(({ entry, tokens, keywordSet, fullText }) => {
-      let score = 0;
-
-      for (const token of queryTokens) {
-        if (keywordSet.has(token)) {
-          score += 6;
-          continue;
-        }
-
-        if (tokens.has(token)) {
-          score += 3;
-          continue;
-        }
-
-        if (fullText.includes(token)) {
-          score += 1;
-        }
-      }
-
-      for (const keyword of Array.from(keywordSet)) {
-        if (normalizedQuery.includes(keyword)) {
-          score += 2;
-        }
-      }
-
-      if (normalizedQuery && fullText.includes(normalizedQuery)) {
-        score += 3;
-      }
-
-      return { entry, score };
-    })
-    .filter(({ score }) => score > 0)
-    .sort((a, b) => b.score - a.score)
-    .slice(0, limit)
-    .map(({ entry }) => entry);
-
-  if (matches.length === 0) {
-    return { context: "", matches: [] };
-  }
-
-  const context = matches
-    .map((entry) => `${entry.title}: ${entry.content}`)
-    .join("\n\n");
-
-  return { context, matches };
-}
-
-function prepareMessagesForInput(messages: ChatMessage[]) {
-  return messages
-    .map((message) => ({ ...message, content: message.content.trim() }))
-    .filter((message) => message.content.length > 0)
-    .slice(-12)
-    .map((message) => ({
-      role: message.role,
-      content: [
-        {
-          type: "text" as const,
-          text: message.content
-        }
-      ]
-    }));
 }
 
 export async function registerRoutes(app: Express): Promise<Server> {
@@ -478,91 +347,49 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // -------------------- CHAT (OpenAI Responses + Prompt ID) --------------------
   app.post("/api/chat", async (req, res) => {
-    let fallbackReply = "";
     try {
       const { messages } = chatRequestSchema.parse(req.body);
 
-      const trimmedMessages: ChatMessage[] = messages.map((message) => ({
-        role: message.role,
-        content: message.content.trim()
-      }));
+      if (!process.env.OPENAI_API_KEY) {
+        return res.status(500).json({ error: "Chatbot идэвхгүй (API key алга)." });
+      }
 
-      const lastUserMessage = [...trimmedMessages]
+      const lastUserMessage = [...messages]
         .reverse()
-        .find((m) => m.role === "user")?.content;
-
+        .find((m) => m.role === "user")?.content?.trim();
       if (!lastUserMessage) {
-        return res.status(400).json({ error: "Хэрэглэгчийн асуулт олдсонгүй." });
+        return res.status(400).json({ error: "Асуулт олдсонгүй." });
       }
 
-      const userQueries = trimmedMessages
-        .filter((message) => message.role === "user")
-        .map((message) => message.content);
+      const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
-      const retrievalQuery = userQueries.slice(-3).join(" ");
-      const { context: rawContext, matches: knowledgeMatches } =
-        buildKnowledgeContext(retrievalQuery);
-
-      fallbackReply = knowledgeMatches[0]
-        ? `${knowledgeMatches[0].title}: ${knowledgeMatches[0].content}`
-        : "";
-
-      const normalizedContext = rawContext.trim();
-      const MAX_CONTEXT_CHARS = 1500;
-      const limitedContext =
-        normalizedContext.length > MAX_CONTEXT_CHARS
-          ? `${normalizedContext.slice(0, MAX_CONTEXT_CHARS)}…`
-          : normalizedContext;
-
-      const topicPayload = limitedContext
-        ? `${lastUserMessage}\n\nХолбогдох мэдээлэл:\n${limitedContext}`
-        : lastUserMessage;
-
-      const apiKey = process.env.OPENAI_API_KEY;
-      if (!apiKey) {
-        if (fallbackReply) {
-          return res.json({ reply: fallbackReply });
-        }
-        return res
-          .status(500)
-          .json({ error: "Chatbot одоогоор идэвхгүй байна. Админтай холбогдоно уу." });
-      }
-
-      const conversationInput = prepareMessagesForInput(trimmedMessages);
-
-      const client = new OpenAI({ apiKey });
-
-      const aiResp = await client.responses.create({
+      // Published Prompt ашиглаж, topic хувьсагчид хэрэглэгчийн асуултыг өгнө
+      const ai = await client.responses.create({
         prompt: {
           id: MANDAX_PROMPT_ID,
           version: "1",
-          variables: {
-            topic: topicPayload
-          }
-        },
-        input: conversationInput
+          variables: { topic: lastUserMessage }
+        }
       });
 
-      const reply = extractOutputText(aiResp);
-
+      const reply = extractOutputText(ai);
       if (!reply) {
-        console.error("OpenAI Responses API unexpected payload:", aiResp);
-        if (fallbackReply) {
-          return res.json({ reply: fallbackReply });
-        }
-        return res.status(502).json({ error: "Хариу боловсруулахад алдаа гарлаа." });
+        console.error("Unexpected Responses payload:", ai);
+        return res.status(502).json({ error: "Хариу боловсруулахад алдаа." });
       }
 
       return res.json({ reply });
-    } catch (error) {
-      if (fallbackReply) {
-        return res.json({ reply: fallbackReply });
-      }
-      if (error instanceof z.ZodError) {
+    } catch (err: any) {
+      if (err instanceof z.ZodError) {
         return res.status(400).json({ error: "Буруу хүсэлтийн бүтэц." });
       }
-      console.error("Chatbot request error:", error);
-      return res.status(500).json({ error: "Хүсэлтийг боловсруулахад алдаа гарлаа." });
+      console.error(
+        "OpenAI error:",
+        err?.status,
+        err?.message,
+        (err as any)?.response?.data || err
+      );
+      return res.status(502).json({ error: "Гадаад үйлчилгээний алдаа." });
     }
   });
 
