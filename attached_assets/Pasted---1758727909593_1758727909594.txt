@@ -1,0 +1,177 @@
+✅ Мандалх чатбот интеграцыг засах, ажиллуулах даалгавар
+
+Та кодын агент. Доорх ажлуудыг дарааллаар нь гүйцэтгэ. Бүх тайлбар, код монгол хэл дээр байна.
+
+Зорилго
+
+Backend: /api/chat endpoint-ыг OpenAI Responses API + Prompt ID ашигладаг болгох
+
+Frontend: чат виджетээс POST JSON илгээж, хариуг үзүүлэх
+
+Алдаа оношлох: лог, CORS, body-parser, curl тест нэмэх
+
+Оролтын утгууд
+
+PROMPT_ID: pmpt_68d3f38ef4048196adfa404d6e7eb56d0602415a6bfbe225
+
+ENV: .env дотор OPENAI_API_KEY=...
+
+1. Саналууд суулгах
+npm i openai cors
+
+2. Серверийн суурь тохиргоо
+
+server/index.ts (эсвэл үндсэн сервер асаадаг файл) дээр registerRoutes дуудаххаас өмнө:
+
+import express from "express";
+import cors from "cors";
+
+app.use(cors({ origin: true, credentials: true }));
+app.use(express.json());
+app.use(express.urlencoded({ extended: false }));
+
+
+/api/health шалгах endpoint нэм:
+
+app.get("/api/health", (_req, res) => res.json({ ok: true }));
+
+3. /api/chat-ийг Responses API + Prompt ID ашиглахаар шинэчлэх
+
+server/routes.ts доторхи хуучин /api/chat route-ийг доорх кодоор бүрэн солино.
+
+import OpenAI from "openai";
+import { z } from "zod";
+
+const chatMessageSchema = z.object({
+  role: z.enum(["user", "assistant"]),
+  content: z.string().min(1)
+});
+const chatRequestSchema = z.object({
+  messages: z.array(chatMessageSchema).min(1)
+});
+
+const MANDAX_PROMPT_ID =
+  process.env.MANDAX_PROMPT_ID || "pmpt_68d3f38ef4048196adfa404d6e7eb56d0602415a6bfbe225";
+
+function extractOutputText(resp: any): string {
+  const direct = resp?.output_text?.trim?.();
+  if (direct) return direct;
+  return (
+    resp?.output?.[0]?.content?.[0]?.text?.trim?.() ||
+    resp?.data?.[0]?.content?.[0]?.text?.trim?.() ||
+    ""
+  );
+}
+
+app.post("/api/chat", async (req, res) => {
+  try {
+    const { messages } = chatRequestSchema.parse(req.body);
+
+    if (!process.env.OPENAI_API_KEY) {
+      return res.status(500).json({ error: "Chatbot идэвхгүй (API key алга)." });
+    }
+
+    const lastUserMessage = [...messages]
+      .reverse()
+      .find(m => m.role === "user")?.content?.trim();
+    if (!lastUserMessage) {
+      return res.status(400).json({ error: "Асуулт олдсонгүй." });
+    }
+
+    const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+
+    // Published Prompt ашиглаж, topic хувьсагчид хэрэглэгчийн асуултыг өгнө
+    const ai = await client.responses.create({
+      prompt: {
+        id: MANDAX_PROMPT_ID,
+        version: "1",
+        variables: { topic: lastUserMessage }
+      }
+    });
+
+    const reply = extractOutputText(ai);
+    if (!reply) {
+      console.error("Unexpected Responses payload:", ai);
+      return res.status(502).json({ error: "Хариу боловсруулахад алдаа." });
+    }
+
+    return res.json({ reply });
+  } catch (err: any) {
+    if (err instanceof z.ZodError) {
+      return res.status(400).json({ error: "Буруу хүсэлтийн бүтэц." });
+    }
+    console.error("OpenAI error:", err?.status, err?.message, err?.response?.data || err);
+    return res.status(502).json({ error: "Гадаад үйлчилгээний алдаа." });
+  }
+});
+
+
+Хэрвээ .env-д MANDAX_PROMPT_ID хэрэгтэй бол:
+
+MANDAX_PROMPT_ID=pmpt_68d3f38ef4048196adfa404d6e7eb56d0602415a6bfbe225
+
+4. Frontend-аас хүсэлтээ зөв илгээдэг болгох
+
+Чат виджет (ж: client/src/components/chat-widget.tsx эсвэл ашиглаж буй компонент) дээр JSON POST дуудлагыг дараах байдлаар хий.
+
+async function sendChat(text: string) {
+  const res = await fetch("/api/chat", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      messages: [{ role: "user", content: text }]
+    })
+  });
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err?.error || "Серверийн алдаа");
+  }
+
+  const data = await res.json();
+  return data.reply as string;
+}
+
+
+UI-д:
+
+Илгээхэд loading төлөв харуул
+
+Амжилттай бол хариуг чатанд нэм
+
+Алдаа бол “Түр алдаа гарлаа. Дараа дахин оролдоно уу.” гэж үзүүлэх + console.error
+
+5. README-д curl тест нэм
+
+README.md-д дараахыг оруул:
+
+curl -i http://localhost:3000/api/chat \
+  -H "Content-Type: application/json" \
+  -d '{"messages":[{"role":"user","content":"тэтгэлэг"}]}'
+
+
+200 OK ба { "reply": "..." } ирвэл сервер зөв ажиллаж байна.
+
+6. QA чеклист (заавал биелүүл)
+
+ npm i openai cors суусан
+
+ Серверт express.json() ба cors идэвхтэй
+
+ /api/health → { ok: true }
+
+ /api/chat curl тест → 200 OK + reply
+
+ Frontend-оос POST JSON явж, хариу UI дээр харагдаж байна
+
+ Алдаа үед сервер лог дээр status + message + response.data хэвлэгдэж байна
+
+7. Түгээмэл алдаа гарвал
+
+500 API key алга → Replit Secrets дээр OPENAI_API_KEY нэмээд серверээ restart
+
+400 Буруу хүсэлтийн бүтэц → Frontend JSON формат (role/content)-оо шалга
+
+Хариу хоосон → Prompt ID буруу эсэх, SDK openai@latest эсэхийг шалга
+
+Эдгээрийг бүгдийг нь хэрэгжүүлээд дуусга.
