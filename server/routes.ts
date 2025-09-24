@@ -11,6 +11,7 @@ import {
   insertContactMessageSchema
 } from "@shared/schema";
 import { z } from "zod";
+import { knowledgeBase, type KnowledgeEntry } from "./knowledge";
 
 /** ----- Chat schemas ----- */
 const chatMessageSchema = z.object({
@@ -34,6 +35,131 @@ function extractOutputText(resp: any): string {
     resp?.data?.[0]?.content?.[0]?.text?.trim?.() ||
     "";
   return fromArray;
+}
+
+type ChatMessage = z.infer<typeof chatMessageSchema>;
+
+const STOP_WORDS = new Set([
+  "би",
+  "чи",
+  "та",
+  "энэ",
+  "тэр",
+  "асуулт",
+  "тухай",
+  "талаар",
+  "байна",
+  "байдаг",
+  "байх",
+  "бол",
+  "болох",
+  "хэрхэн",
+  "яаж",
+  "ямар",
+  "хэн",
+  "хэд",
+  "өгөөч",
+  "хүсэж",
+  "мэдээлэл"
+]);
+
+function tokenizeText(text: string): string[] {
+  return text
+    .toLowerCase()
+    .normalize("NFC")
+    .replace(/[^\w\s\u0400-\u04FF]+/g, " ")
+    .split(/\s+/)
+    .map((token) => token.trim())
+    .filter(Boolean);
+}
+
+interface KnowledgeIndexEntry {
+  entry: KnowledgeEntry;
+  fullText: string;
+  tokens: Set<string>;
+  keywordSet: Set<string>;
+}
+
+const knowledgeIndex: KnowledgeIndexEntry[] = knowledgeBase.map((entry) => {
+  const fullText = `${entry.title} ${entry.content} ${(entry.keywords ?? []).join(" ")}`.toLowerCase();
+  return {
+    entry,
+    fullText,
+    tokens: new Set(tokenizeText(fullText)),
+    keywordSet: new Set(entry.keywords.map((keyword) => keyword.toLowerCase()))
+  };
+});
+
+function buildKnowledgeContext(query: string, limit = 3): string {
+  const normalizedQuery = query.toLowerCase();
+  const queryTokens = tokenizeText(normalizedQuery).filter(
+    (token) => token && !STOP_WORDS.has(token)
+  );
+
+  if (queryTokens.length === 0) {
+    return "";
+  }
+
+  const matches = knowledgeIndex
+    .map(({ entry, tokens, keywordSet, fullText }) => {
+      let score = 0;
+
+      for (const token of queryTokens) {
+        if (keywordSet.has(token)) {
+          score += 6;
+          continue;
+        }
+
+        if (tokens.has(token)) {
+          score += 3;
+          continue;
+        }
+
+        if (fullText.includes(token)) {
+          score += 1;
+        }
+      }
+
+      for (const keyword of Array.from(keywordSet)) {
+        if (normalizedQuery.includes(keyword)) {
+          score += 2;
+        }
+      }
+
+      if (normalizedQuery && fullText.includes(normalizedQuery)) {
+        score += 3;
+      }
+
+      return { entry, score };
+    })
+    .filter(({ score }) => score > 0)
+    .sort((a, b) => b.score - a.score)
+    .slice(0, limit)
+    .map(({ entry }) => entry);
+
+  if (matches.length === 0) {
+    return "";
+  }
+
+  return matches
+    .map((entry) => `${entry.title}: ${entry.content}`)
+    .join("\n\n");
+}
+
+function prepareMessagesForInput(messages: ChatMessage[]) {
+  return messages
+    .map((message) => ({ ...message, content: message.content.trim() }))
+    .filter((message) => message.content.length > 0)
+    .slice(-12)
+    .map((message) => ({
+      role: message.role,
+      content: [
+        {
+          type: "text" as const,
+          text: message.content
+        }
+      ]
+    }));
 }
 
 export async function registerRoutes(app: Express): Promise<Server> {
@@ -357,11 +483,37 @@ export async function registerRoutes(app: Express): Promise<Server> {
           .json({ error: "Chatbot одоогоор идэвхгүй байна. Админтай холбогдоно уу." });
       }
 
-      // Хэрэглэгчийн хамгийн сүүлийн асуултыг Prompt-ийн variables.topic-д дамжуулна
-      const lastUserMessage = [...messages].reverse().find(m => m.role === "user")?.content?.trim();
+      const trimmedMessages: ChatMessage[] = messages.map((message) => ({
+        role: message.role,
+        content: message.content.trim()
+      }));
+
+      const lastUserMessage = [...trimmedMessages]
+        .reverse()
+        .find((m) => m.role === "user")?.content;
+
       if (!lastUserMessage) {
         return res.status(400).json({ error: "Хэрэглэгчийн асуулт олдсонгүй." });
       }
+
+      const userQueries = trimmedMessages
+        .filter((message) => message.role === "user")
+        .map((message) => message.content);
+
+      const retrievalQuery = userQueries.slice(-3).join(" ");
+      const rawContext = buildKnowledgeContext(retrievalQuery);
+      const normalizedContext = rawContext.trim();
+      const MAX_CONTEXT_CHARS = 1500;
+      const limitedContext =
+        normalizedContext.length > MAX_CONTEXT_CHARS
+          ? `${normalizedContext.slice(0, MAX_CONTEXT_CHARS)}…`
+          : normalizedContext;
+
+      const topicPayload = limitedContext
+        ? `${lastUserMessage}\n\nХолбогдох мэдээлэл:\n${limitedContext}`
+        : lastUserMessage;
+
+      const conversationInput = prepareMessagesForInput(trimmedMessages);
 
       const client = new OpenAI({ apiKey });
 
@@ -370,9 +522,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
           id: MANDAX_PROMPT_ID,
           version: "1",
           variables: {
-            topic: lastUserMessage
+            topic: topicPayload
           }
-        }
+        },
+        input: conversationInput
       });
 
       const reply = extractOutputText(aiResp);
