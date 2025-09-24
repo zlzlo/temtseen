@@ -90,14 +90,17 @@ const knowledgeIndex: KnowledgeIndexEntry[] = knowledgeBase.map((entry) => {
   };
 });
 
-function buildKnowledgeContext(query: string, limit = 3): string {
+function buildKnowledgeContext(
+  query: string,
+  limit = 3
+): { context: string; matches: KnowledgeEntry[] } {
   const normalizedQuery = query.toLowerCase();
   const queryTokens = tokenizeText(normalizedQuery).filter(
     (token) => token && !STOP_WORDS.has(token)
   );
 
   if (queryTokens.length === 0) {
-    return "";
+    return { context: "", matches: [] };
   }
 
   const matches = knowledgeIndex
@@ -138,12 +141,14 @@ function buildKnowledgeContext(query: string, limit = 3): string {
     .map(({ entry }) => entry);
 
   if (matches.length === 0) {
-    return "";
+    return { context: "", matches: [] };
   }
 
-  return matches
+  const context = matches
     .map((entry) => `${entry.title}: ${entry.content}`)
     .join("\n\n");
+
+  return { context, matches };
 }
 
 function prepareMessagesForInput(messages: ChatMessage[]) {
@@ -473,15 +478,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // -------------------- CHAT (OpenAI Responses + Prompt ID) --------------------
   app.post("/api/chat", async (req, res) => {
+    let fallbackReply = "";
     try {
       const { messages } = chatRequestSchema.parse(req.body);
-
-      const apiKey = process.env.OPENAI_API_KEY;
-      if (!apiKey) {
-        return res
-          .status(500)
-          .json({ error: "Chatbot одоогоор идэвхгүй байна. Админтай холбогдоно уу." });
-      }
 
       const trimmedMessages: ChatMessage[] = messages.map((message) => ({
         role: message.role,
@@ -501,7 +500,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
         .map((message) => message.content);
 
       const retrievalQuery = userQueries.slice(-3).join(" ");
-      const rawContext = buildKnowledgeContext(retrievalQuery);
+      const { context: rawContext, matches: knowledgeMatches } =
+        buildKnowledgeContext(retrievalQuery);
+
+      fallbackReply = knowledgeMatches[0]
+        ? `${knowledgeMatches[0].title}: ${knowledgeMatches[0].content}`
+        : "";
+
       const normalizedContext = rawContext.trim();
       const MAX_CONTEXT_CHARS = 1500;
       const limitedContext =
@@ -512,6 +517,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const topicPayload = limitedContext
         ? `${lastUserMessage}\n\nХолбогдох мэдээлэл:\n${limitedContext}`
         : lastUserMessage;
+
+      const apiKey = process.env.OPENAI_API_KEY;
+      if (!apiKey) {
+        if (fallbackReply) {
+          return res.json({ reply: fallbackReply });
+        }
+        return res
+          .status(500)
+          .json({ error: "Chatbot одоогоор идэвхгүй байна. Админтай холбогдоно уу." });
+      }
 
       const conversationInput = prepareMessagesForInput(trimmedMessages);
 
@@ -532,11 +547,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       if (!reply) {
         console.error("OpenAI Responses API unexpected payload:", aiResp);
+        if (fallbackReply) {
+          return res.json({ reply: fallbackReply });
+        }
         return res.status(502).json({ error: "Хариу боловсруулахад алдаа гарлаа." });
       }
 
       return res.json({ reply });
     } catch (error) {
+      if (fallbackReply) {
+        return res.json({ reply: fallbackReply });
+      }
       if (error instanceof z.ZodError) {
         return res.status(400).json({ error: "Буруу хүсэлтийн бүтэц." });
       }
