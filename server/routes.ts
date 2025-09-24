@@ -3,6 +3,7 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import OpenAI from "openai";
 import { storage } from "./storage";
+import { knowledgeBase, type KnowledgeEntry } from "./knowledge";
 import {
   insertUserSchema,
   insertNewsEventSchema,
@@ -34,6 +35,91 @@ function extractOutputText(resp: any): string {
     resp?.data?.[0]?.content?.[0]?.text?.trim?.() ||
     ""
   );
+}
+
+/** ----- Helper: knowledge base fallback ----- */
+type KnowledgeIndexEntry = {
+  entry: KnowledgeEntry;
+  normalizedText: string;
+  tokens: Set<string>;
+  keywordSet: Set<string>;
+};
+
+const normalizedKnowledgeIndex: KnowledgeIndexEntry[] = buildKnowledgeIndex(knowledgeBase);
+
+function normalizeText(text: string): string {
+  return text
+    .toLowerCase()
+    .normalize("NFKD")
+    .replace(/["'`]+/g, " ")
+    .replace(/[^\p{L}\p{N}\s]+/gu, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function buildKnowledgeIndex(entries: KnowledgeEntry[]): KnowledgeIndexEntry[] {
+  return entries.map((entry) => {
+    const normalizedKeywords = entry.keywords
+      .map((kw) => normalizeText(kw))
+      .filter((kw) => kw.length > 0);
+    const normalizedText = normalizeText(
+      [entry.title, entry.content, ...normalizedKeywords].join(" ")
+    );
+
+    const tokens = new Set(normalizedText.split(" ").filter(Boolean));
+    for (const keyword of normalizedKeywords) {
+      tokens.add(keyword);
+    }
+
+    return {
+      entry,
+      normalizedText,
+      tokens,
+      keywordSet: new Set(normalizedKeywords),
+    };
+  });
+}
+
+function findKnowledgeBaseAnswer(question: string): string | null {
+  const normalizedQuery = normalizeText(question);
+  if (!normalizedQuery) return null;
+
+  const queryTokens = normalizedQuery.split(" ").filter(Boolean);
+  if (queryTokens.length === 0) return null;
+
+  let bestEntry: KnowledgeEntry | null = null;
+  let bestScore = 0;
+
+  for (const candidate of normalizedKnowledgeIndex) {
+    let score = 0;
+
+    for (const token of queryTokens) {
+      if (candidate.tokens.has(token)) {
+        score += 2;
+      }
+    }
+
+    for (const keyword of candidate.keywordSet) {
+      if (normalizedQuery.includes(keyword)) {
+        score += 3;
+      }
+    }
+
+    if (candidate.normalizedText.includes(normalizedQuery)) {
+      score += 4;
+    }
+
+    if (score > bestScore) {
+      bestScore = score;
+      bestEntry = candidate.entry;
+    }
+  }
+
+  if (bestEntry && bestScore >= 4) {
+    return `🤖 Манай мэдлэгийн сангаас олдсон мэдээлэл:\n\n**${bestEntry.title}**\n${bestEntry.content}`;
+  }
+
+  return null;
 }
 
 export async function registerRoutes(app: Express): Promise<Server> {
@@ -350,10 +436,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { messages } = chatRequestSchema.parse(req.body);
 
-      if (!process.env.OPENAI_API_KEY) {
-        return res.status(500).json({ error: "Chatbot идэвхгүй (API key алга)." });
-      }
-
       const lastUserMessage = [...messages]
         .reverse()
         .find((m) => m.role === "user")?.content?.trim();
@@ -361,35 +443,59 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: "Асуулт олдсонгүй." });
       }
 
-      const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+      let reply: string | null = null;
 
-      // Published Prompt ашиглаж, topic хувьсагчид хэрэглэгчийн асуултыг өгнө
-      const ai = await client.responses.create({
-        prompt: {
-          id: MANDAX_PROMPT_ID,
-          version: "1",
-          variables: { topic: lastUserMessage }
+      if (process.env.OPENAI_API_KEY) {
+        try {
+          const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+
+          const ai = await client.responses.create({
+            prompt: {
+              id: MANDAX_PROMPT_ID,
+              version: "1",
+              variables: { topic: lastUserMessage }
+            }
+          });
+
+          const openAiReply = extractOutputText(ai)?.trim();
+          if (openAiReply) {
+            reply = openAiReply;
+          } else {
+            console.error("Unexpected Responses payload:", ai);
+          }
+        } catch (error) {
+          const err = error as any;
+          console.error(
+            "OpenAI error:",
+            err?.status,
+            err?.message,
+            err?.response?.data || err
+          );
         }
-      });
+      } else {
+        console.warn("OPENAI_API_KEY тохируулга хийгдээгүй тул мэдлэгийн сангийн горимоор ажиллаж байна.");
+      }
 
-      const reply = extractOutputText(ai);
       if (!reply) {
-        console.error("Unexpected Responses payload:", ai);
-        return res.status(502).json({ error: "Хариу боловсруулахад алдаа." });
+        const fallback = findKnowledgeBaseAnswer(lastUserMessage);
+        if (fallback) {
+          return res.json({ reply: fallback });
+        }
+
+        return res.json({
+          reply:
+            "Уучлаарай, одоогоор чатбот гадаад үйлчилгээтэй холбогдож чадсангүй. Та бидэнтэй 7700-0000 утсаар эсвэл info@mandakh.edu.mn хаягаар холбогдоорой.",
+        });
       }
 
       return res.json({ reply });
-    } catch (err: any) {
+    } catch (err) {
       if (err instanceof z.ZodError) {
         return res.status(400).json({ error: "Буруу хүсэлтийн бүтэц." });
       }
-      console.error(
-        "OpenAI error:",
-        err?.status,
-        err?.message,
-        (err as any)?.response?.data || err
-      );
-      return res.status(502).json({ error: "Гадаад үйлчилгээний алдаа." });
+
+      console.error("Chat endpoint error:", err);
+      return res.status(500).json({ error: "Дотоод серверийн алдаа." });
     }
   });
 
