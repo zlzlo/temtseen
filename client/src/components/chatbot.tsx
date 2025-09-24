@@ -80,6 +80,31 @@ export default function ChatbotWidget() {
     }
   };
 
+  async function sendChat(text: string) {
+    const response = await fetch("/api/chat", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        messages: [{ role: "user", content: text }]
+      })
+    });
+
+    const payload: { reply?: string; error?: string } = await response
+      .json()
+      .catch(() => ({}));
+
+    if (!response.ok) {
+      throw new Error(payload?.error || "Серверийн алдаа");
+    }
+
+    const reply = payload.reply?.trim();
+    if (!reply) {
+      throw new Error("Missing assistant reply");
+    }
+
+    return reply;
+  }
+
   async function sendMessage(content: string) {
     const userMessage: ChatMessage = {
       id: `user-${Date.now()}`,
@@ -95,29 +120,7 @@ export default function ChatbotWidget() {
     setError(null);
 
     try {
-      const response = await fetch("/api/chat", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({
-          messages: updatedMessages.map((message) => ({
-            role: message.role,
-            content: message.content
-          }))
-        })
-      });
-
-      if (!response.ok) {
-        throw new Error(`Chat request failed with status ${response.status}`);
-      }
-
-      const data: { reply?: string } = await response.json();
-      const assistantReply = data.reply?.trim();
-      if (!assistantReply) {
-        throw new Error("Missing assistant reply");
-      }
-
+      const assistantReply = await sendChat(content.trim());
       const assistantMessage: ChatMessage = {
         id: `assistant-${Date.now()}`,
         role: "assistant",
@@ -129,17 +132,8 @@ export default function ChatbotWidget() {
       setMessages(finalMessages);
     } catch (error) {
       console.error("Chatbot error", error);
-      const fallbackMessage: ChatMessage = {
-        id: `assistant-${Date.now()}`,
-        role: "assistant",
-        content:
-          "Уучлаарай, таны хүсэлтийг одоогоор боловсруулж чадсангүй. Дараа дахин оролдоно уу."
-      };
-
-      const finalMessages = [...messagesRef.current, fallbackMessage];
-      messagesRef.current = finalMessages;
-      setMessages(finalMessages);
-      setError("Түр алдаа гарлаа. Дахин илгээхийг оролдоно уу.");
+      setMessages(messagesRef.current);
+      setError("Түр алдаа гарлаа. Дараа дахин оролдоно уу.");
     } finally {
       setIsLoading(false);
       window.setTimeout(() => {
