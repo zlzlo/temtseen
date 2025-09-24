@@ -20,15 +20,13 @@ export default function ContactSection() {
 
   const contactMutation = useMutation({
     mutationFn: async (data: typeof formData) => {
-      return apiRequest("/api/contact", {
-        method: "POST",
-        body: data,
-      });
+      const response = await apiRequest("POST", "/api/contact", data);
+      return (await response.json()) as { message?: string };
     },
     onSuccess: (data) => {
       toast({
         title: "Амжилттай",
-        description: data.message || "Таны мессеж амжилттай илгээгдлээ!",
+        description: data?.message || "Таны мессеж амжилттай илгээгдлээ!",
       });
       // Reset form
       setFormData({

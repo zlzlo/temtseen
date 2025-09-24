@@ -10,6 +10,15 @@ import {
 } from "@shared/schema";
 import { z } from "zod";
 
+const chatMessageSchema = z.object({
+  role: z.enum(["user", "assistant"]),
+  content: z.string().min(1)
+});
+
+const chatRequestSchema = z.object({
+  messages: z.array(chatMessageSchema).min(1)
+});
+
 export async function registerRoutes(app: Express): Promise<Server> {
   
   // Authentication routes
@@ -69,7 +78,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   app.post("/api/auth/logout", (req, res) => {
-    req.session.destroy((err) => {
+    req.session.destroy((err: unknown) => {
       if (err) {
         return res.status(500).json({ error: "Logout алдаа" });
       }
@@ -320,6 +329,68 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Get contact messages error:", error);
       res.status(500).json({ error: "Мессеж ачаалах алдаа" });
+    }
+  });
+
+  app.post("/api/chat", async (req, res) => {
+    try {
+      const { messages } = chatRequestSchema.parse(req.body);
+
+      const apiKey = process.env.OPENAI_API_KEY;
+      if (!apiKey) {
+        return res
+          .status(500)
+          .json({ error: "Chatbot одоогоор идэвхгүй байна. Админтай холбогдоно уу." });
+      }
+
+      const openAiMessages = [
+        {
+          role: "system",
+          content:
+            "You are a friendly Mongolian-speaking assistant for the Temtseen school website. Provide concise, accurate answers about programs, admissions, student life, and contact information using the details shared by the user."
+        },
+        ...messages.map((message) => ({
+          role: message.role,
+          content: message.content
+        }))
+      ];
+
+      const response = await fetch("https://api.openai.com/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${apiKey}`
+        },
+        body: JSON.stringify({
+          model: "gpt-4o-mini",
+          messages: openAiMessages,
+          temperature: 0.7,
+          max_tokens: 300
+        })
+      });
+
+      if (!response.ok) {
+        const errorBody = await response.text();
+        console.error("OpenAI API error:", response.status, errorBody);
+        return res.status(502).json({ error: "Гадаад үйлчилгээтэй холбогдоход алдаа гарлаа." });
+      }
+
+      const data = await response.json();
+      const reply = data?.choices?.[0]?.message?.content?.trim();
+
+      if (!reply) {
+        console.error("OpenAI API returned unexpected payload:", data);
+        return res.status(502).json({ error: "Хариу боловсруулахад алдаа гарлаа." });
+      }
+
+      res.json({ reply });
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: "Буруу хүсэлтийн бүтэц." });
+      }
+
+      console.error("Chatbot request error:", error);
+      res.status(500).json({ error: "Хүсэлтийг боловсруулахад алдаа гарлаа." });
     }
   });
 
