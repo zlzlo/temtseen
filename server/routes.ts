@@ -1,12 +1,14 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
-import { 
-  insertUserSchema, 
-  insertNewsEventSchema, 
+import {
+  insertUserSchema,
+  insertNewsEventSchema,
   insertProgramSchema,
   insertApplicationSchema,
-  insertContactMessageSchema 
+  insertContactMessageSchema,
+  type NewsEvent,
+  type Program
 } from "@shared/schema";
 import { z } from "zod";
 
@@ -18,6 +20,263 @@ const chatMessageSchema = z.object({
 const chatRequestSchema = z.object({
   messages: z.array(chatMessageSchema).min(1)
 });
+
+type ContextMessage = {
+  role: "system" | "assistant";
+  content: string;
+};
+
+const BASE_SYSTEM_PROMPT =
+  "You are a friendly Mongolian-speaking assistant for the Temtseen school website. Use the provided context snippets to answer accurately. If the context does not contain the answer, say you are unsure and suggest contacting the school. Always answer in Mongolian.";
+
+const PROGRAM_KEYWORDS = [
+  "хөтөлбөр",
+  "хөтөлбөрүүд",
+  "сургалт",
+  "program",
+  "curriculum",
+  "төлөвлөгөө"
+];
+
+const NEWS_KEYWORDS = [
+  "мэдээ",
+  "шинэ",
+  "эвент",
+  "event",
+  "үйл ажиллагаа",
+  "арга хэмжээ"
+];
+
+const ADMISSIONS_KEYWORDS = [
+  "элсэлт",
+  "элсэлтийн",
+  "бүртгэл",
+  "шаардлага",
+  "материал",
+  "алхам"
+];
+
+const STUDENT_LIFE_KEYWORDS = [
+  "оюутны амьдрал",
+  "оюутан",
+  "клуб",
+  "дотуур байр",
+  "тэтгэлэг",
+  "спорт",
+  "номын сан"
+];
+
+const CONTACT_KEYWORDS = [
+  "холбоо",
+  "байршил",
+  "хаана",
+  "хаяг",
+  "имэйл",
+  "email",
+  "утас",
+  "contact"
+];
+
+const ADMISSIONS_CONTEXT = `Элсэлтийн үйл явц дараах үндсэн алхмуудаас бүрдэнэ.
+1. Бүртгүүлэх – онлайн бүртгэл бөглөж, хувийн мэдээллээ баталгаажуулна.
+2. Бичиг баримт – иргэний үнэмлэх, цээж зураг, ЭЕШ-ын оноо эсвэл дунд сургуулийн голч дүн, төлбөрийн баримт зэрэг шаардлагатай материалуудыг бүрдүүлнэ.
+3. Шалгалт/ярилцлага – элсэлтийн шалгалт өгөх эсвэл ярилцлагад оролцоно.
+4. Элсэлт баталгаажуулах – сургалтын төлбөр, баримтыг баталгаажуулж эрхээ идэвхжүүлнэ.`;
+
+const STUDENT_LIFE_CONTEXT =
+  "Оюутны амьдрал: спорт, урлаг, шинжлэх ухааны 20 гаруй клубууд ажилладаг. Гүйцэтгэл болон нийгмийн байдалд тулгуурласан тэтгэлэг, орчин үеийн дотуур байр, 100 000+ номтой номын сан, инновацын лаборатори, спортын заал, фитнесс төвөөр дамжуулан оюутнууд бүх талаар хөгжих боломжтой.";
+
+const CONTACT_CONTEXT =
+  "Холбоо барих мэдээлэл: Хаяг – Улаанбаатар, Монгол Улс. Имэйл – info@mandakh.edu.mn. Ажлын цаг – Даваа–Баасан 09:00–18:00.";
+
+const FAQ_ENTRIES: Array<{ keywords: string[]; answer: string }> = [
+  {
+    keywords: ["элсэлт", "алхам"],
+    answer:
+      "Элсэлтийн үндсэн алхамууд: 1) Онлайн бүртгүүлэх, 2) Шаардлагатай бичиг баримтыг бүрдүүлэх, 3) Элсэлтийн шалгалт эсвэл ярилцлага өгөх, 4) Элсэлтийн эрхээ баталгаажуулах."
+  },
+  {
+    keywords: ["элсэлт", "материал"],
+    answer:
+      "Элсэлтэд бүрдүүлэх материал: иргэний үнэмлэх, цээж зураг, ЭЕШ-ын оноо эсвэл дунд сургуулийн голч дүн, цахим төлбөрийн баримт."
+  },
+  {
+    keywords: ["байршил"],
+    answer: "Темтсэний кампус Улаанбаатар хотод байрладаг. Хаяг: Улаанбаатар, Монгол Улс."
+  },
+  {
+    keywords: ["ажлын", "цаг"],
+    answer: "Манай хүлээн авах алба Даваа–Баасан гаригт 09:00–18:00 цагийн хооронд ажиллана."
+  }
+];
+
+function findFaqAnswer(query: string): string | undefined {
+  const normalized = query.toLowerCase();
+  for (const entry of FAQ_ENTRIES) {
+    if (entry.keywords.every((keyword) => normalized.includes(keyword))) {
+      return entry.answer;
+    }
+  }
+  return undefined;
+}
+
+function extractKeywords(text: string): string[] {
+  return text
+    .toLowerCase()
+    .split(/[^0-9a-zа-яёөү]+/g)
+    .map((word) => word.trim())
+    .filter((word) => word.length > 2);
+}
+
+function matchKeywords(keywordSet: Set<string>, normalized: string, keywords: string[]): boolean {
+  return keywords.some((keyword) => keywordSet.has(keyword) || normalized.includes(keyword));
+}
+
+function truncateText(text: string, maxLength = 400): string {
+  if (text.length <= maxLength) {
+    return text;
+  }
+  return `${text.slice(0, maxLength - 1).trim()}…`;
+}
+
+function rankByKeywords<T>(
+  items: T[],
+  keywords: string[],
+  getText: (item: T) => string,
+  limit: number
+): T[] {
+  if (!items.length) {
+    return [];
+  }
+
+  const keywordSet = new Set(keywords);
+  const scored = items.map((item) => {
+    const haystack = getText(item).toLowerCase();
+    let score = 0;
+    keywordSet.forEach((keyword) => {
+      if (keyword.length > 2 && haystack.includes(keyword)) {
+        score += 1;
+      }
+    });
+    return { item, score };
+  });
+
+  const relevant = scored.filter(({ score }) => score > 0);
+  const sorted = (relevant.length > 0 ? relevant : scored).sort((a, b) => b.score - a.score);
+  return sorted.slice(0, limit).map(({ item }) => item);
+}
+
+function formatProgram(program: Program): string {
+  const tuitionText =
+    program.tuitionFee != null ? `Жилийн төлбөр: ${program.tuitionFee.toLocaleString()}₮` : "Төлбөрийн мэдээлэл: тодорхойгүй";
+
+  return [
+    `• ${program.title} (${program.level})`,
+    `Хугацаа: ${program.duration}`,
+    `Суралцах хэлбэр: ${program.studyMode}`,
+    `Товч танилцуулга: ${truncateText(program.description, 280)}`,
+    `Шаардлага: ${truncateText(program.requirements, 220)}`,
+    tuitionText
+  ].join("\n");
+}
+
+function formatNewsEvent(newsEvent: NewsEvent): string {
+  const baseDate = newsEvent.eventDate ?? newsEvent.createdAt;
+  let formattedDate = "";
+  if (baseDate) {
+    try {
+      formattedDate = new Date(baseDate).toLocaleDateString("mn-MN", {
+        year: "numeric",
+        month: "long",
+        day: "numeric"
+      });
+    } catch {
+      formattedDate = "";
+    }
+  }
+
+  const dateLine = formattedDate ? ` (${formattedDate})` : "";
+  const typeLine = newsEvent.type === "event" ? "Үйл ажиллагаа" : "Мэдээ";
+
+  return [
+    `• ${newsEvent.title}${dateLine}`,
+    `Ангилал: ${typeLine}`,
+    `Товч мэдээлэл: ${truncateText(newsEvent.description, 220)}`
+  ].join("\n");
+}
+
+async function buildContextMessages(query: string): Promise<ContextMessage[]> {
+  const trimmed = query.trim();
+  if (!trimmed) {
+    return [];
+  }
+
+  const normalized = trimmed.toLowerCase();
+  const keywords = extractKeywords(normalized);
+  const keywordSet = new Set(keywords);
+  const contextMessages: ContextMessage[] = [];
+
+  if (matchKeywords(keywordSet, normalized, PROGRAM_KEYWORDS)) {
+    try {
+      const programs = await storage.getPrograms();
+      if (programs.length) {
+        const relevantPrograms = rankByKeywords(
+          programs,
+          [...keywords, ...PROGRAM_KEYWORDS],
+          (program) =>
+            [program.title, program.description, program.requirements, program.curriculum, program.studyMode].join(" "),
+          3
+        );
+        if (relevantPrograms.length) {
+          contextMessages.push({
+            role: "system",
+            content: `Хөтөлбөрийн мэдээлэл:\n${relevantPrograms.map(formatProgram).join("\n\n")}`
+          });
+        }
+      }
+    } catch (error) {
+      console.error("Failed to load programs for chat context:", error);
+    }
+  }
+
+  if (matchKeywords(keywordSet, normalized, NEWS_KEYWORDS)) {
+    try {
+      const newsEvents = await storage.getNewsEvents(8);
+      if (newsEvents.length) {
+        const relevantNews = rankByKeywords(
+          newsEvents,
+          [...keywords, ...NEWS_KEYWORDS],
+          (item) => [item.title, item.description, item.content, item.type].join(" "),
+          3
+        );
+        if (relevantNews.length) {
+          contextMessages.push({
+            role: "system",
+            content: `Сүүлд нийтэлсэн мэдээ, үйл ажиллагааны мэдээлэл:\n${relevantNews
+              .map(formatNewsEvent)
+              .join("\n\n")}`
+          });
+        }
+      }
+    } catch (error) {
+      console.error("Failed to load news/events for chat context:", error);
+    }
+  }
+
+  if (matchKeywords(keywordSet, normalized, ADMISSIONS_KEYWORDS)) {
+    contextMessages.push({ role: "system", content: ADMISSIONS_CONTEXT });
+  }
+
+  if (matchKeywords(keywordSet, normalized, STUDENT_LIFE_KEYWORDS)) {
+    contextMessages.push({ role: "system", content: STUDENT_LIFE_CONTEXT });
+  }
+
+  if (matchKeywords(keywordSet, normalized, CONTACT_KEYWORDS)) {
+    contextMessages.push({ role: "system", content: CONTACT_CONTEXT });
+  }
+
+  return contextMessages;
+}
 
 export async function registerRoutes(app: Express): Promise<Server> {
   
@@ -343,12 +602,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
           .json({ error: "Chatbot одоогоор идэвхгүй байна. Админтай холбогдоно уу." });
       }
 
+      const latestUserMessage = [...messages]
+        .reverse()
+        .find((message) => message.role === "user")?.content;
+
+      if (latestUserMessage) {
+        const faqAnswer = findFaqAnswer(latestUserMessage);
+        if (faqAnswer) {
+          return res.json({ reply: faqAnswer });
+        }
+      }
+
+      const contextMessages = latestUserMessage ? await buildContextMessages(latestUserMessage) : [];
+
       const openAiMessages = [
         {
           role: "system",
-          content:
-            "You are a friendly Mongolian-speaking assistant for the Temtseen school website. Provide concise, accurate answers about programs, admissions, student life, and contact information using the details shared by the user."
+          content: BASE_SYSTEM_PROMPT
         },
+        ...contextMessages,
         ...messages.map((message) => ({
           role: message.role,
           content: message.content
@@ -364,8 +636,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         body: JSON.stringify({
           model: "gpt-4o-mini",
           messages: openAiMessages,
-          temperature: 0.7,
-          max_tokens: 300
+          temperature: 0.25,
+          max_tokens: 500
         })
       });
 
