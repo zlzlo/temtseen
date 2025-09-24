@@ -132,8 +132,21 @@ export default function ChatbotWidget() {
       setMessages(finalMessages);
     } catch (error) {
       console.error("Chatbot error", error);
-      setMessages(messagesRef.current);
-      setError("Түр алдаа гарлаа. Дараа дахин оролдоно уу.");
+      const errorText =
+        error instanceof Error && error.message.trim().length > 0
+          ? error.message
+          : "Түр алдаа гарлаа. Дараа дахин оролдоно уу.";
+
+      const assistantErrorMessage: ChatMessage = {
+        id: `assistant-error-${Date.now()}`,
+        role: "assistant",
+        content: errorText
+      };
+
+      const finalMessages = [...messagesRef.current, assistantErrorMessage];
+      messagesRef.current = finalMessages;
+      setMessages(finalMessages);
+      setError(errorText);
     } finally {
       setIsLoading(false);
       window.setTimeout(() => {
